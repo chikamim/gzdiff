@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +14,7 @@ import (
 
 func main() {
 	if len(os.Args) <= 2 {
-		fmt.Println("Usage: gzdiff base.gz newer.gz")
+		fmt.Println("Usage: gzdiff base.gz target.gz")
 		os.Exit(1)
 	}
 	bpath := os.Args[1]
@@ -22,19 +23,28 @@ func main() {
 	dpath := strings.TrimSuffix(npath, ext) + ".diff" + ext
 
 	lh := map[uint64]bool{}
-	gzipEachLine(bpath, func(line string, hash uint64) {
+	err := gzipEachLine(bpath, func(line string, hash uint64) {
 		lh[hash] = true
 	})
+	if err != nil {
+		log.Fatalf("read base file failed - %v\n", err)
+	}
 
-	f, _ := os.Create(dpath)
+	f, err := os.Create(dpath)
+	if err != nil {
+		log.Fatalf("create diff file failed - %v\n", err)
+	}
 	w := gzip.NewWriter(f)
 	defer w.Close()
 
-	gzipEachLine(npath, func(line string, hash uint64) {
+	err = gzipEachLine(npath, func(line string, hash uint64) {
 		if !lh[hash] {
 			w.Write([]byte(line + "\n"))
 		}
 	})
+	if err != nil {
+		log.Fatalf("read target file failed - %v\n", err)
+	}
 }
 
 func gzipEachLine(path string, proc func(line string, hash uint64)) error {
